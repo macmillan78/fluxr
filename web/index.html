@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Document</title>
+  <style>
+    .is-hidden {
+      display: none;
+    }
+    .tab {
+      float:left;
+      padding: 2px;
+    }
+    .tab.is-selected {
+      padding: 5px;
+      background-color: antiquewhite;
+    }
+    .content {
+      display: none;
+    }
+    .content.is-selected {
+      display: block;
+    }
+    .tabs::after {
+      content: '.';
+      clear: both;
+      display: block;
+      visibility: hidden;
+      height: 0;
+    }
+    tab, tabs {
+      display: block;
+    }
+    option {
+      cursor: pointer;
+    }
+    option.is-selected {
+      color: red;
+    }
+  </style>
+</head>
+<body>
+  <div class="js-app-container">
+    <h1>App</h1>
+    <form>
+      <selectable>
+        <option data-value="value1">Option1</option>
+        <option data-value="value2">Option2</option>
+        <option data-value="value3">Option3</option>
+        <option data-value="value4">Option4</option>
+        <option data-value="value5">Option5</option>
+        <input type="hidden">
+      </selectable>
+
+      <label for="input1">Label:</label><input type="text" id="input1"><br>
+      <textarea name="input2"></textarea><br>
+      <select name="select1">
+        <option value="1">Opt1</option>
+        <option value="2">Opt2</option>
+      </select>
+      <input type="submit">
+    </form>
+    <tabbed>
+      <tabs class="tabs">
+        <tab class="is-selected tab">tab1</tab>
+        <tab class="tab">tab2</tab>
+      </tabs>
+      <div class="js-content is-selected content">
+        Content 1
+      </div>
+      <div class="js-content content">
+        <tabbed>
+          <tabs class="tabs">
+            <tab class="is-selected tab">tab1</tab>
+            <tab class="tab">tab2</tab>
+          </tabs>
+          <div class="js-content is-selected content">
+            Content 1
+          </div>
+          <div class="js-content content">
+            Content 2
+          </div>
+        </tabbed>
+      </div>
+    </tabbed>
+    <accordion>
+      <title>Title 1</title>
+      <content>
+          Content1: Mauris mauris ante, blandit et, ultrices a, susceros. Nam mi. Proin viverra leo ut odio. Curabitur malesuada. Vestibulum a velit eu ante scelerisque vulputate.
+      </content>
+      <title>Title 2</title>
+      <content>
+          Content2: Mauris mauris ante, blandit et, ultrices a, susceros. Nam mi. Proin viverra leo ut odio. Curabitur malesuada. Vestibulum a velit eu ante scelerisque vulputate.
+      </content>
+      <title>Title 3</title>
+      <content>
+          Content3: Mauris mauris ante, blandit et, ultrices a, susceros. Nam mi. Proin viverra leo ut odio. Curabitur malesuada. Vestibulum a velit eu ante scelerisque vulputate.
+      </content>
+    </accordion>
+  </div>
+  <script type="text/javascript" src="js/app.js"></script>
+</body>
+</html>
