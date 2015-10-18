@@ -7,12 +7,12 @@ export class DOMElement {
     private $node;
     private node;
 
-    constructor(node:Node) {
+    constructor(node:HTMLElement) {
         this.node = node;
         this.$node = $(node);
     }
 
-    public get():Element {
+    public get():HTMLElement {
         return this.node;
     }
 
@@ -47,9 +47,22 @@ export class DOMElement {
         return this;
     }
 
-    public off(event?:string):DOMElement {
+    public off():void;
+    public off(event:string):void;
+    public off(event:string, element:HTMLDocument):void;
+    public off(event:string, element:HTMLDocument, handler:Function):void;
+
+    public off(event?:string, element?:HTMLDocument, handler?:Function):DOMElement {
         if (event) {
-            this.$node.off(event);
+            if (element) {
+                if (handler) {
+                    $(element).off(event, handler);
+                } else {
+                    $(element).off(event);
+                }
+            } else {
+                this.$node.off(event);
+            }
         } else {
             this.$node.off();
         }
@@ -58,9 +71,9 @@ export class DOMElement {
     }
 
     public find(selector):Array<DOMElement> {
-        var elements:Array<DOMElement> = [];
+        var elements:DOMElement[] = [];
 
-        this.$node.find(selector).each((number:Number, element:Element) => {
+        this.$node.find(selector).each((number:Number, element:HTMLElement) => {
             elements.push(new DOMElement(element));
         });
 
@@ -143,6 +156,7 @@ class BaseComponent {
 
     public on(event:string, func:(event:Event, data:any) => void):BaseComponent;
     public on(event:string, selector:string, func:(event:Event, element:DOMElement, data:any) => void):BaseComponent;
+    public on(event:string, element:HTMLDocument, func:(event:Event, element:DOMElement, data:any) => void):BaseComponent;
 
     public on(event:string, selector:any, func?:(event:Event, element:DOMElement, data:any) => void):BaseComponent {
         var _this = this;
@@ -151,17 +165,36 @@ class BaseComponent {
                 selector.bind(_this)(event, new DOMElement(event.target), data);
             });
         } else {
-            this.node.on(event, this.getSelector(selector), function (event, data) {
-                func.bind(_this)(event, new DOMElement(event.target), data);
-            });
+            if (selector instanceof HTMLDocument) {
+                new DOMElement(selector).on(event, function (event, data) {
+                    func.bind(_this)(event, new DOMElement(event.target), data);
+                });
+            } else {
+                this.node.on(event, this.getSelector(selector), function (event, data) {
+                    func.bind(_this)(event, new DOMElement(event.target), data);
+                });
+            }
         }
 
         return this;
     }
 
-    public off(event?:string):void {
+    public off():void;
+    public off(event:string):void;
+    public off(event:string, element:HTMLDocument):void;
+    public off(event:string, element:HTMLDocument, handler:Function):void;
+
+    public off(event?:string, element?:HTMLDocument, handler?:Function):void {
         if (event) {
-            this.node.off(event);
+            if (element) {
+                if (handler) {
+                    this.node.off(event, element, handler);
+                } else {
+                    this.node.off(event, element);
+                }
+            } else {
+                this.node.off(event);
+            }
         } else {
             this.node.off();
         }
@@ -206,8 +239,18 @@ class ComponentRegistry {
     }
 }
 
+export interface Offset {
+    left:number;
+    top:number;
+    width:number;
+    height:number;
+}
+
 export class Component extends BaseComponent {
 
+    static IS_DEBUG:boolean = false;
+
+    static ATTR_INDEX:string = 'data-index';
     private parent:Component;
     protected childrenMap:{[key:string]:Component[]} = {};
     protected state:any;
@@ -238,6 +281,29 @@ export class Component extends BaseComponent {
 
     protected getDefaultAttributes():Object {
         return {};
+    }
+
+    protected offset():Offset {
+        let node = this.node.get();
+        let offset = {
+            left: node.offsetLeft,
+            top: node.offsetTop,
+            width: node.offsetWidth,
+            height: node.offsetHeight
+        };
+
+        while (node.offsetParent !== null) {
+            node = <HTMLElement>node.offsetParent;
+
+            offset = {
+                left: offset.left + node.offsetLeft,
+                top: offset.top + node.offsetTop,
+                width: offset.width + node.offsetWidth,
+                height: offset.height + node.offsetHeight
+            }
+        }
+
+        return offset;
     }
 
     protected setState(state:Object):void {
@@ -277,7 +343,7 @@ export class Component extends BaseComponent {
     }
 
     public setParent(parent:Component):void {
-        this.node.get().setAttribute('data-parent', parent.getID());
+        if (Component.IS_DEBUG) this.node.get().setAttribute('data-parent', parent.getID());
         this.parent = parent;
     }
 
@@ -336,10 +402,12 @@ export class Component extends BaseComponent {
         return [];
     }
 
-    protected addChildElement(name:string, element:Element):Component {
+    protected addChildElement(name:string, element:HTMLElement):Component {
         if (this.childElementMap.hasOwnProperty(name)) {
+            element.setAttribute(Component.ATTR_INDEX, this.childElementMap[name].length + '');
             this.childElementMap[name].push(new DOMElement(element));
         } else {
+            element.setAttribute(Component.ATTR_INDEX, '0');
             this.childElementMap[name] = [new DOMElement(element)];
         }
 
@@ -431,7 +499,7 @@ export class Component extends BaseComponent {
             let nodes = this.find(this.getSelector(key));
 
             nodes.forEach((element:DOMElement) => {
-                element.get().setAttribute('data-attached-to', this.getID());
+                if (Component.IS_DEBUG) element.get().setAttribute('data-attached-to', this.getID());
                 this.addChildElement(key, element.get());
             });
         });

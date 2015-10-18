@@ -1,85 +1,8 @@
 import { Component, DOMElement } from 'common/Component';
-
-class Selectable extends Component {
-    protected getInitialState():Object {
-        return {
-            index: 0,
-            value: this.getChildElements('option')[0].data('value')
-        };
-    }
-
-    protected getDefaultAttributes():Object {
-        return {
-            optionSelector: ':scope > option',
-            hiddenSelector: ':scope > input[type=hidden]',
-            selectedClass: 'is-selected'
-        };
-    }
-
-    protected componentDidMount():void {
-        this.withChildElements({
-                option: this.attributes.optionSelector,
-                hidden: this.attributes.hiddenSelector
-            });
-
-        this.on('click', 'option', (event:Event, element:DOMElement) => {
-            this.setState({
-                index: element.index(),
-                value: element.data('value')
-            });
-        });
-    }
-
-    protected stateChanged(oldState:any, newState:any):void {
-        let options = this.getChildElements('option');
-        let hidden = this.getChildElements('hidden');
-
-        hidden.map((hidden) => {
-            hidden.val(newState.value);
-        });
-
-        options[oldState.index].removeClass(this.attributes.selectedClass);
-        options[newState.index].addClass(this.attributes.selectedClass);
-    }
-}
-
-class Tabbed extends Component {
-    protected getInitialState():Object {
-        return {
-            index: 0
-        };
-    }
-
-    protected getDefaultAttributes():Object {
-        return {
-            contentSelector: ':scope > .js-content',
-            selectedClass: 'is-selected'
-        };
-    }
-
-    protected componentDidMount():void {
-        this.withChildElements({
-            content: this.attributes.contentSelector
-        });
-
-        this.add(':scope > tabs', Selectable, {
-                optionSelector: ':scope > tab',
-            }, 'tabcontainer');
-
-        this.get('tabcontainer')[0].addStateObserver((oldState, newState) => {
-            this.setState({
-                index: newState.index
-            });
-        });
-    }
-
-    protected stateChanged(oldState:any, newState:any):void {
-        let contents = this.getChildElements('content');
-
-        contents[oldState.index].removeClass(this.attributes.selectedClass);
-        contents[newState.index].addClass(this.attributes.selectedClass);
-    }
-}
+import { Selectable } from 'components/Selectable';
+import { Tabbed } from 'components/Tabbed';
+import { Accordion } from 'components/Accordion';
+import { Slider } from 'components/Slider';
 
 export default class MainWindow extends Component {
     private input1;
@@ -105,7 +28,20 @@ export default class MainWindow extends Component {
         this.add('selectable', Selectable, {}, 'selectable');
         this.add('tabbed', Tabbed, {}, 'tabbed');
 
+        this.add('accordion', Accordion, {}, 'accordion');
+
+        this.add('slider', Slider, {}, 'slider');
+        this.add('sliderv', Slider, {
+            orientation:Slider.VERTICAL,
+            minValue: -5
+        }, 'sliderv');
+
         this.bindState('selectable', 'value', 'selectableValue');
+
+        this.get('sliderv')[0].addStateObserver((oldState, newState) => {
+            var element:any = this.getChildElements('input1')[0].get();
+            element.value = newState.value;
+        });
     }
 
     onSubmit(event:Event, element: DOMElement):void {
