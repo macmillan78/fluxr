@@ -152,7 +152,7 @@ export class Slider extends Component {
         this.handle.get().style[this.styleProp] = newState.position + 'px';
         var hidden:any = this.hidden ? this.hidden.get() : null;
         if (hidden) hidden.value = newState.value;
-        var range:any = this.range ? this.range.get() : null;
+        var range = this.range ? this.range.get() : null;
         if (range) range.style[this.styleProp == 'left' ? 'width' : 'height'] = (newState.position + this.handleSize / 2) + 'px';
     }
 }
