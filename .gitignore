@@ -1,4 +1,6 @@
+/dist/
 /node_modules/
+/examples/react-example/node_modules/
 /web/js/app.*
 tsd-debug.log
 

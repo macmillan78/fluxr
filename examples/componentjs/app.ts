@@ -1,22 +1,22 @@
 import MainWindow from 'app/MainWindow';
 import { Component } from 'common/Component';
-import { reloadAll, saveTask, Task, loadUser, saveUser, savePerson, sendMail, userUpdated } from 'app/actions';
-import { Observable,Subject } from 'rx';
-import { Action } from 'common/flux/Action';
+//import { reloadAll, saveTask, Task, loadUser, saveUser, savePerson, sendMail, userUpdated } from 'app/actions';
+import { Observable,Subject,AsyncSubject } from 'rx';
+import { Action } from 'lib/Action';
 
 class Application {
     public run() : void {
 
-        var next = (elem) => {
-            console.log('next', elem, elem.action == reloadAll, elem.is(reloadAll));
-        };
-        var err = (err) => {
-            console.log('error', err);
-        };
-        var completed = () => {
-            console.log('completed');
-        };
-
+        //var next = (elem) => {
+        //    console.log('next', elem, elem.action == reloadAll, elem.is(reloadAll));
+        //};
+        //var err = (err) => {
+        //    console.log('error', err);
+        //};
+        //var completed = () => {
+        //    console.log('completed');
+        //};
+        //
         //var sub1 = new Subject<number>();
         //var sub2 = new Subject<number>();
         //var sub1c = 0;
@@ -71,6 +71,30 @@ class Application {
         //).subscribe((elem) => {
         //        console.log('reloadAll and userUpdated', elem);
         //}, err, completed);
+
+        //let source = Observable.interval(5).timeInterval().take(20);
+        //
+        //let async = source.map((next:any) => {
+        //    let interval = Math.floor(Math.random() * 2000);
+        //
+        //    next.deferred = interval;
+        //
+        //    return Observable.defer(() => {
+        //        let subject = new AsyncSubject();
+        //        console.log('fire', next.value);
+        //        window.setTimeout(() => {
+        //            console.log('done', next.value);
+        //            subject.onNext(next);
+        //            subject.onCompleted();
+        //        }, interval);
+        //
+        //        return subject;
+        //    });
+        //}).concatAll();
+        //
+        //async.subscribe((next) => {
+        //    console.log('element', next);
+        //});
 
         MainWindow.attachTo(
             MainWindow,

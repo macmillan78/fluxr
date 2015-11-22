@@ -121,11 +121,17 @@
       border-radius: 5px;
       z-index: 1;
     }
+
+    .user-table-container {
+      padding: 10px;
+      border: 1px solid black;
+    }
   </style>
 </head>
 <body>
   <div class="js-app-container">
     <h1>App</h1>
+    <button id="mybutton">Testbutton</button>
     <form>
       <selectable>
         <option data-value="value1">Option1</option>
@@ -144,6 +150,13 @@
       </select>
       <input type="submit">
     </form>
+
+    <div class="user-table-container">
+      <table class="user-table">
+
+      </table>
+    </div>
+
     <slider>
       <handle></handle>
       <range></range>

@@ -1,12 +1,12 @@
 {
   "compilerOptions": {
-    "declaration": true,
     "target": "es5",
     "module": "commonjs",
     "noImplicitAny": false,
     "removeComments": true,
     "preserveConstEnums": true,
-    "sourceMap": true
+    "sourceMap": true,
+    "jsx": "react"
   },
   "files": [
     "typings/tsd.d.ts"

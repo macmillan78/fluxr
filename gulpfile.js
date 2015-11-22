@@ -2,9 +2,12 @@ var gulp = require('gulp');
 var gutil = require('gulp-util');
 var webpack = require('webpack');
 var WebpackDevServer = require('webpack-dev-server');
-var config = require('./webpack.config');
+var devConfig = require('./webpack.config');
+var distConfig = require('./webpack.dist.config');
+var examplesConfig = require('./webpack.examples.config');
+var KarmaServer = require('karma').Server;
 
-gulp.task('build', function (callback) {
+function createWebpack(config, callback) {
   webpack(config, function(err, stats) {
     if(err) throw new gutil.PluginError("webpack", err);
     gutil.log("[webpack]", stats.toString({
@@ -12,6 +15,31 @@ gulp.task('build', function (callback) {
     }));
     callback();
   });
+}
+
+gulp.task('build:dev', function (callback) {
+  createWebpack(devConfig, callback);
+});
+
+gulp.task('build', function (callback) {
+  createWebpack(distConfig, callback);
+});
+
+gulp.task('build:examples', function (callback) {
+  createWebpack(examplesConfig, callback);
+});
+
+gulp.task('test', function (done) {
+  new KarmaServer({
+    configFile: __dirname + '/karma.conf.js',
+    singleRun: true
+  }, done).start();
+});
+
+gulp.task('test:server', function (done) {
+  new KarmaServer({
+    configFile: __dirname + '/karma.conf.js'
+  }, done).start();
 });
 
 gulp.task('server', function (callback) {
@@ -28,3 +56,4 @@ gulp.task('server', function (callback) {
       callback();
     });
 });
+

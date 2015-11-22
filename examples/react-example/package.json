@@ -1,0 +1,14 @@
+{
+  "dependencies": {
+    "deep-diff": "^0.3.3",
+    "react": "^0.14.2",
+    "react-dom": "^0.14.2",
+    "react-json-tree": "^0.3.0",
+    "rx": "^4.0.6"
+  },
+  "devDependencies": {
+    "ts-loader": "^0.6.1",
+    "typescript": "^1.6.2",
+    "webpack": "^1.12.3"
+  }
+}

@@ -12,7 +12,6 @@ export class Accordion extends Selectable {
         };
     }
 
-
     protected getChildElementSelectors():Object {
         let selectors = super.getChildElementSelectors();
 

@@ -1,5 +1,5 @@
-var path = require('path')
-var node_modules_dir =
+var path = require('path');
+var node_modules_dir = path.resolve(__dirname, 'node_modules');
 
 module.exports = {
   entry: __dirname + '/src/app.ts',
@@ -27,11 +27,7 @@ module.exports = {
         test: /\.ts$/,
         loader: 'ts-loader',
         exclude: [node_modules_dir]
-      }/*,
-      {
-        test: /\.js$/,
-        loader: 'babel-loader'
-      }*/
+      }
     ]
   }
 };
