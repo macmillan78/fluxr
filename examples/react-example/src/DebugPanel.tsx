@@ -8,16 +8,22 @@ import * as JSONTree from 'react-json-tree';
 import * as Button from 'react-button';
 import { TangleText } from './TangleText.jsx';
 import {
-    DebugStore,
+    Store,
     DebugState as DebugStoreState,
-    DebugMode
+    DebugHistoryState,
+    DebugMode,
+    isChangeByOneOfStores,
+    MetaStore,
+    StoreChange,
+    DebugActions
 } from 'fluxr';
-import DebugStoreProps from "./";
 
 interface DebugStoreProps {
-  debugStore:DebugStore;
+  currentState:number;
   state:DebugStoreState;
   index: number;
+  mode: DebugMode,
+  key:number
 }
 
 const styles = {
@@ -64,11 +70,11 @@ const styles = {
     overflowY: 'auto',
     flexGrow: '1'
   },
-  slider {
+  slider: {
     width: '30px',
     cursor: 'move'
   },
-  footer {
+  footer: {
     textAlign: 'center'
   }
 };
@@ -79,16 +85,15 @@ class DebugState extends React.Component<DebugStoreProps, {}> {
   }
 
   render() {
-    const debugStore = this.props.debugStore;
-    const light      = this.props.index > debugStore.currentState;
-    const inactive   = this.props.state.inactive;
-    const mode       = this.props.mode;
+    const light    = this.props.index > this.props.currentState;
+    const inactive = this.props.state.inactive;
+    const mode     = this.props.mode;
 
 
     let headlineStyle = {
       margin: 0,
       backgroundColor: '#4f5a65',
-      backgroundColor: inactive ? '#654f5a' : '#4f5a65'
+      backgroundColor: inactive ? '#654f5a' : '#4f5a65',
       fontWeight: 'normal',
       padding: '8px 0 8px 20px',
       color: light ? '#676a70' : 'white',
@@ -104,13 +109,13 @@ class DebugState extends React.Component<DebugStoreProps, {}> {
           <h3 style={headlineStyle}>
             {this.props.state.action.id}
             <span style={styles.buttonContainer}>
-              {this.props.key == 0 ? null : <Button style={styles.button} onClick={event => {
+              {this.props.index == 0 ? null : <Button style={styles.button} onClick={event => {
               event.stopPropagation();
-              debugStore.toggleStateActive(this.props.state);
+              DebugActions.toggleStateActive(this.props.state);
             }}>{inactive ? '+' : '-'}</Button>}
               <Button
                   style={styles.button}
-                  onClick={() => debugStore.jumpToState(this.props.state)}>&lt;
+                  onClick={() => DebugActions.jumpToState(this.props.state)}>&lt;
               </Button>
             </span>
           </h3>
@@ -124,7 +129,7 @@ class DebugState extends React.Component<DebugStoreProps, {}> {
             { (mode == DebugMode.DIFF ? (<div style={styles.diffContainer}>{
                 this.renderDiff(this.props.state.diff)
                 }
-            </div>) : null }
+            </div>) : null) }
           </div>
               }
         </div>
@@ -157,7 +162,7 @@ class DebugState extends React.Component<DebugStoreProps, {}> {
         if (diff.deleted[key] && diff.added[key]) {
           diffs.push(this.renderUpdateAttribute({
             path: diff.path + '.' + key,
-            deleted: diff.deleted[key]
+            deleted: diff.deleted[key],
             added: diff.added[key]
           }));
         } else if (diff.deleted[key]) {
@@ -255,28 +260,24 @@ export class DebugPanel extends React.Component {
 
     this.state = {
       states: [],
-      mode: DebugMode.STATE
+      mode: DebugMode.STATE,
+      currentState: 0
     };
-  }
 
-  componentDidMount() {
-    const debugStore = this.props.debugStore;
-
-    debugStore.subscribe((debugStore) => {
-      this.setState({
-        states: debugStore.states
-      });
-    });
-
-    this.setState({
-      states: debugStore.states
-    });
+    Store.source.filter(isChangeByOneOfStores([this.props.debugStore]))
+        .debounce(100).subscribe((change:StoreChange<DebugHistoryState>) => {
+      console.log(change.state.states);
+          this.setState({
+            states: change.state.states,
+            mode: change.state.mode,
+            currentState: change.state.currentState
+          });
+        });
   }
 
   render() {
-    const debugStore = this.props.debugStore;
-    const mode       = this.state.mode;
-    const states     = this.state.states;
+    const mode   = this.state.mode;
+    const states = this.state.states;
 
     return (
         <div style={styles.container}>
@@ -285,77 +286,56 @@ export class DebugPanel extends React.Component {
               <Button
                   style={styles.button}
                   pressed={mode == DebugMode.STATE}
-                  onClick={() => this.switchStateMode()}>State
+                  onClick={() => this.switchMode(DebugMode.STATE)}>State
               </Button>
               <Button
                   style={styles.button}
                   pressed={mode == DebugMode.FULLSTATE}
-                  onClick={() => this.switchFullStateMode()}>Full-State
+                  onClick={() => this.switchMode(DebugMode.FULLSTATE)}>Full-State
               </Button>
               <Button
                   style={styles.button}
                   pressed={mode == DebugMode.DIFF}
-                  onClick={() => this.switchDiffMode()}>Diff
+                  onClick={() => this.switchMode(DebugMode.DIFF)}>Diff
               </Button>
               <span> #{states.length}</span>
             </div>
             <div>
               <Button
                   style={styles.button}
-                  onClick={() => debugStore.commit()}>Commit
+                  onClick={() => DebugActions.commit()}>Commit
               </Button>
               <Button
                   style={styles.button}
-                  onClick={() => debugStore.sweep()}>Sweep
+                  onClick={() => DebugActions.sweep()}>Sweep
               </Button>
               <Button
                   style={styles.button}
-                  onClick={() => debugStore.reset()}>Reset
+                  onClick={() => DebugActions.reset()}>Reset
               </Button>
             </div>
           </div>
           <div style={styles.scrollArea}>
             { states.map((state, index) => {
-                return (<DebugState debugStore={debugStore} index={index} key={state.key}
+                return (<DebugState currentState={this.state.currentState} index={index} key={state.key}
                                     state={ state } mode={mode}/>);
                 }) }
           </div>
           <div style={styles.footer}>
             <TangleText pixelDistance={5}
-                style={styles.slider} onChange={(bounds) => this.onSliderChange(bounds)}
-                value={this.state.states.length} min={0} max={debugStore.states.length}/>
+                        style={styles.slider} onChange={(bounds) => this.onSliderChange(bounds)}
+                        value={this.state.currentState} min={0} max={this.state.states.length-1}/>
           </div>
         </div>
     );
   }
 
   onSliderChange(bounds) {
-    const debugStore = this.props.debugStore;
-    debugStore.jumpToState(debugStore.states[bounds]);
+    DebugActions.jumpToState(this.state.states[bounds]);
   }
 
-  switchStateMode() {
-    this.setState({
-      mode: DebugMode.STATE
-    });
-
-    this.props.debugStore.setMode(DebugMode.STATE);
-  }
-
-  switchFullStateMode() {
-    this.setState({
-      mode: DebugMode.FULLSTATE
-    });
-
-    this.props.debugStore.setMode(DebugMode.FULLSTATE);
-  }
-
-  switchDiffMode() {
-    this.setState({
-      mode: DebugMode.DIFF
-    });
-
-    this.props.debugStore.setMode(DebugMode.DIFF);
+  switchMode(mode:DebugMode) {
+    DebugActions.setMode(mode);
   }
 }
 

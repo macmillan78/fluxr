@@ -53,7 +53,7 @@
 	var react_dom_1 = __webpack_require__(158);
 	var fluxr_1 = __webpack_require__(159);
 	var bootstrap_1 = __webpack_require__(170);
-	var DebugPanel2_1 = __webpack_require__(172);
+	var DebugPanel_1 = __webpack_require__(172);
 	var App = (function (_super) {
 	    __extends(App, _super);
 	    function App(props) {
@@ -112,7 +112,7 @@
 	    toggleCompleteTodo: bootstrap_1.toggleCompleteTodo2,
 	    deleteTodo: bootstrap_1.deleteTodo2
 	};
-	react_dom_1.render((React.createElement("div", null, React.createElement("div", {"style": column}, React.createElement(App, {"config": config})), React.createElement("div", {"style": column}, React.createElement(App, {"config": config2})), React.createElement(DebugPanel2_1.DebugPanel, {"debugStore": bootstrap_1.debugStore}))), document.getElementsByClassName('app-container')[0]);
+	react_dom_1.render((React.createElement("div", null, React.createElement("div", {"style": column}, React.createElement(App, {"config": config})), React.createElement("div", {"style": column}, React.createElement(App, {"config": config2})), React.createElement(DebugPanel_1.DebugPanel, {"debugStore": bootstrap_1.debugStore}))), document.getElementsByClassName('app-container')[0]);
 
 
 /***/ },
@@ -32226,9 +32226,8 @@
 	var ComposableStore_1 = __webpack_require__(163);
 	var Action_1 = __webpack_require__(160);
 	var helpers_1 = __webpack_require__(165);
-	exports.initStores = Action_1.Action.create('@@INIT_STORE@@');
+	exports.initStores = Action_1.Action.create('@@INIT_STORES@@');
 	exports.setState = Action_1.Action.create('@@SET_STATE@@');
-	exports.anyAction = Action_1.Action.create('@@ANY_ACTION@@');
 	var actionStoreMap = {};
 	function disposeAndFilterSubscriptions(actions, handler, subscriptions) {
 	    var isSubscriptionOneOfActions = helpers_1.isOneOfWith(actions, function (one, two) { return one.action == two; });
@@ -32567,6 +32566,7 @@
 	function commit(store, action) {
 	    var state = store.getState();
 	    var commitState = state.states[state.currentState];
+	    commitState.action = new Action_1.Action(Store_1.initStores, null, action.id);
 	    commitState.state = calculateState(state.states, state.currentState, state.mode);
 	    var states = [commitState];
 	    var currentState = 0;
@@ -32651,7 +32651,7 @@
 	function replayAll(actionSource) {
 	    return function (store, action) {
 	        var state = store.getState();
-	        applyState(state.states[0]);
+	        applyState(state.states[0].state);
 	        var replayStates = state.states.slice();
 	        var states = [replayStates.shift()];
 	        var currentState = states.length - 1;
@@ -45660,7 +45660,7 @@
 	        var stateDisplay = {
 	            opacity: light ? 0.4 : 1
 	        };
-	        return (React.createElement("div", null, React.createElement("h3", {"style": headlineStyle}, this.props.state.action.id, React.createElement("span", {"style": styles.buttonContainer}, this.props.key == 0 ? null : React.createElement(Button, {"style": styles.button, "onClick": function (event) {
+	        return (React.createElement("div", null, React.createElement("h3", {"style": headlineStyle}, this.props.state.action.id, React.createElement("span", {"style": styles.buttonContainer}, this.props.index == 0 ? null : React.createElement(Button, {"style": styles.button, "onClick": function (event) {
 	            event.stopPropagation();
 	            fluxr_1.DebugActions.toggleStateActive(_this.props.state);
 	        }}, inactive ? '+' : '-'), React.createElement(Button, {"style": styles.button, "onClick": function () { return fluxr_1.DebugActions.jumpToState(_this.props.state); }}, "<"))), inactive ? null :

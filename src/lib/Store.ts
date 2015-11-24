@@ -15,26 +15,57 @@ import {
     isOneOfWith
 } from 'lib/helpers';
 
+/**
+ * Interface of store handlers, which are registered at the store and use the payload of actions to change the state
+ * of stores.
+ *
+ * Example:
+ *
+ * let store = Store.create<SomeStateType>();
+ *
+ * store.on(someAction, (store:IStore<T>, action:Action<any>, stores:IStore<any>[]) => {
+ *  let currentState = store.getState();
+ *  // ... calculate the new state
+ *  return newState;
+ * });
+ *
+ * someAction(payload);
+ */
 export interface StoreHandler<T> {
   (store:IStore<T>, action:Action<any>, stores:IStore<any>[]):T;
 }
 
+/**
+ * Store Change, which will be propagated through the Store.source observable.
+ */
 export interface StoreChange<T> {
   action:Action<any>,
   store:IStore<T>,
   state:T
 }
 
+/**
+ * A disposable subscription to a store.
+ */
 export interface StoreSubscription<T> {
   action:ActionFunctionBase<any>;
   handler:StoreHandler<T>;
   disposable:Disposable;
 }
 
-// core actions
-export const initStores:ActionFunction = Action.create('@@INIT_STORE@@');
+//--- core actions
+/**
+ * Predefined init action. Should be used to trigger initialization of the stores.
+ *
+ * @type {ActionFunction}
+ */
+export const initStores:ActionFunction = Action.create('@@INIT_STORES@@');
+/**
+ *
+ *
+ * @type {ActionFunction}
+ */
 export const setState:ActionFunction   = Action.create('@@SET_STATE@@');
-export const anyAction:ActionFunction  = Action.create('@@ANY_ACTION@@');
 
 const actionStoreMap:any = {};
 
@@ -219,6 +250,7 @@ export class Store<T> extends ComposableStore<T> {
         <ActionFunctionBase<any>[]>action : [action];
 
     // TODO Necessarry?
+    // If needed. than
     actions.forEach((action) => {
       if (!actionStoreMap.hasOwnProperty(action.uniqueId)) {
         actionStoreMap[action.uniqueId] = [];

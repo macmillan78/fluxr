@@ -17,7 +17,7 @@ import {
     completedCountStore2, todoStore2, addTodo2, toggleCompleteTodo2,  deleteTodo2
 } from './bootstrap';
 
-import { DebugPanel } from './DebugPanel2';
+import { DebugPanel } from './DebugPanel';
 
 
 interface AppState {

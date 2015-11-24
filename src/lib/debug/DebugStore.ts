@@ -1,10 +1,22 @@
 import {
     Action,
+    ActionFunctionBase,
+    ActionFunctionSingle,
+    ActionFunction
 } from 'lib/Action';
+import {
+    MetaStore
+} from 'lib/MetaStore';
+import {
+    isOneOfActions
+} from 'lib/helpers';
 import {
     Store,
     StoreChange,
-    setState
+    StoreHandler,
+    setState,
+    initStores,
+    Tags
 } from 'lib/Store';
 
 import {
@@ -15,6 +27,7 @@ import {
 import objectAssign = require('object-assign');
 
 import deepDiff = require('deep-diff');
+
 let diffDeep:any = deepDiff.diff;
 
 export interface DebugState {
@@ -25,248 +38,366 @@ export interface DebugState {
   inactive:boolean;
 }
 
-export enum DebugModes {
+export enum DebugMode {
   STATE,
   FULLSTATE,
   DIFF
 }
 
-const added   = {
-  color: 'green'
+export interface DebugHistoryState {
+  states:DebugState[];
+  currentState:number;
+  mode:DebugMode;
+  stateCounter:number;
+}
+
+const DebugTags = {
+  REPLAY_INACTIVE: 'REPLAY_INACTIVE'
 };
-const removed = {
-  color: 'red',
-  textDecoration: 'line-through'
+
+export const DebugActions = {
+  sweep: Action.create('sweep'),
+  commit: Action.create('commit'),
+  reset: Action.create('reset'),
+  setMode: Action.create<DebugMode>('setMode'),
+  toggleStateActive: Action.create<DebugHistoryState>('toggleStateActive'),
+  jumpToState: Action.create<DebugHistoryState>('jumpToState')
 };
 
-// implement connected.
-export class DebugStore {
-  private _states:DebugState[]                         = [];
-  private _handlers:((debugStore:DebugStore) => any)[] = [];
-  private _currentState                                = 0;
-  private _throttle                                    = 0;
-  private _mode                                        = DebugModes.STATE;
-  private timer                                        = null;
-  private stateCounter                                 = 0;
-  protected actionSource:Subject<Action<any>>;
-  protected storeSource:Subject<StoreChange<any>>;
 
-  public get states():any[] {
-    return this._states;
-  }
+class ControllableMetaStore<T> extends MetaStore<T> {
+  private actionSource:Subject<Action<any>>;
 
-  public get currentState() {
-    return this._currentState;
-  }
+  public constructor(actionSource:Subject<Action<any>>,
+                     storeSource:Subject<StoreChange<any>>, initialState:T, id:string = null) {
+    super(storeSource, initialState, id);
 
-  constructor(actionSource:Subject<Action<any>>, storeSource:Subject<StoreChange<any>>, throttle:number = 0, mode = DebugModes.STATE) {
     this.actionSource = actionSource;
-    this.storeSource  = storeSource;
-    this._throttle    = throttle;
-    this._mode        = DebugModes.STATE;
-
-    this.storeSource
-        .filter((change) => {
-
-              return change.action.id != setState.id
-            }
-        )
-        .subscribe((change:StoreChange<any>) => this.storeChangeHandler(change));
   }
 
-  private storeChangeHandler(change:StoreChange<any>) {
-    if (this._currentState < this._states.length - 1) {
-      this._states = this._states.slice(0, this._currentState + 1);
+  public onAction(boundAction:ActionFunctionBase<any>|ActionFunctionBase<any>[],
+                  handler:(store:MetaStore<T>, action?:Action<any>) => any):void {
+    let actions = Array.isArray(boundAction) ?
+        <ActionFunctionBase<any>[]>boundAction :
+        <ActionFunctionBase<any>[]>[boundAction];
+
+    this.actionSource.filter(isOneOfActions(actions)).subscribe(action => {
+      let state = handler(this, action);
+
+      if (state !== undefined) {
+        this.state = state;
+
+        this.storeSource.onNext({
+          action,
+          store: this,
+          state: this.getState()
+        });
+      }
+    });
+  }
+}
+
+
+function calculateState(states, stateIndex, mode) {
+  if (mode == DebugMode.DIFF) {
+    return states[stateIndex].state;
+  }
+
+  let calculatedState = {};
+  let i;
+
+  for (i = 0; i <= stateIndex; i++) {
+    if (!states[i].inactive) {
+      Object.keys(states[i].state).forEach(key => calculatedState[key] = states[i].state[key]);
+    }
+  }
+
+  return calculatedState;
+}
+
+function commit(store:MetaStore<DebugHistoryState>, action:Action<any>):DebugHistoryState {
+  const state = store.getState();
+
+  // TODO check
+  let commitState    = state.states[state.currentState];
+  commitState.action = new Action(initStores, null, action.id);
+  commitState.state  = calculateState(state.states, state.currentState, state.mode);
+  let states         = [commitState];
+  let currentState   = 0;
+
+  return {
+    states,
+    currentState,
+    mode: state.mode,
+    stateCounter: state.stateCounter
+  };
+}
+
+function applyState(state:any) {
+  Store.stores.forEach(store => {
+    if (state[store.id]) {
+      store.setState(state[store.id]);
+    }
+  });
+}
+
+function sweep(store:MetaStore<DebugHistoryState>):DebugHistoryState {
+  let state  = store.getState();
+  let states = state.states.filter(state => state.inactive == false);
+
+  state = {
+    states,
+    currentState: states.length - 1,
+    mode: state.mode,
+    stateCounter: state.stateCounter
+  };
+
+  applyState(calculateState(states, state.currentState, state.mode));
+
+  return state;
+}
+
+function reset(store:MetaStore<DebugHistoryState>):DebugHistoryState {
+  let state        = store.getState();
+  let states       = state.states.slice(0, 1);
+  let currentState = 0;
+  state            = {
+    states,
+    currentState,
+    mode: state.mode,
+    stateCounter: state.stateCounter
+  };
+
+  applyState(calculateState(states, currentState, state.mode));
+
+  return state;
+}
+
+function setMode(store:MetaStore<DebugHistoryState>, action:Action<any>):DebugHistoryState {
+  let state = store.getState();
+
+  return {
+    states: state.states,
+    currentState: state.currentState,
+    mode: action.payload,
+    stateCounter: state.stateCounter
+  };
+}
+
+function jumpToState(store:MetaStore<DebugHistoryState>, action:Action<any>):DebugHistoryState {
+  let state        = store.getState();
+  let position     = state.states.indexOf(action.payload);
+  let currentState = state.currentState;
+
+  if (position > -1) {
+    currentState = position;
+
+    applyState(calculateState(state.states, currentState, state.mode));
+  }
+
+  return {
+    states: state.states,
+    currentState,
+    mode: state.mode,
+    stateCounter: state.stateCounter
+  }
+}
+
+function toggleStateActive(store:MetaStore<DebugHistoryState>, action:Action<any>):DebugHistoryState {
+  let state        = store.getState();
+  let states       = state.states;
+  let currentState = states.length - 1;
+  let position     = states.indexOf(action.payload);
+
+  if (position > -1) {
+    states[position].inactive = !states[position].inactive;
+
+//    this.replayAll();
+  }
+
+  return {
+    states,
+    currentState,
+    mode: state.mode,
+    stateCounter: state.stateCounter
+  };
+}
+
+
+function replayAll(actionSource:Subject<Action<any>>) {
+  return function (store:MetaStore<DebugHistoryState>, action:Action<any>) {
+    const state = store.getState();
+
+    applyState(state.states[0].state);
+
+    const replayStates = [...state.states];
+
+    const states = [replayStates.shift()];
+
+    const currentState = states.length - 1;
+
+    const newStoreState = {
+      states,
+      currentState,
+      mode: state.mode,
+      stateCounter: state.stateCounter
+    };
+
+    // deferred replay of all following actions after the state stack has been reset to first state
+    window.setTimeout(() => {
+      replayStates.forEach(state => {
+        let action;
+        if (state.inactive) {
+          action = state.action;
+          action.addTag(DebugTags.REPLAY_INACTIVE);
+          action.addTag(Tags.INTERNAL);
+        } else {
+          action = state.action;
+        }
+        actionSource.onNext(action);
+      });
+    }, 0);
+
+    return newStoreState;
+  }
+}
+
+let debugStateKeyCounter = 0;
+function storeChangeHandler(debugStore:ControllableMetaStore<DebugHistoryState>) {
+  return function (change:StoreChange<any>, store:MetaStore<DebugHistoryState>) {
+    if (change.store == debugStore || change.action.id == setState.id) {
+      return undefined;
     }
 
-    if (this._states.length > 0
-        && this._states[this._states.length - 1].action === change.action) {
-      this._states[this._states.length - 1].state[change.store.id] = change.state;
+    const changeState   = change.state;
+    const changeAction  = change.action;
+    const changeStoreId = change.store.id;
+    const state         = store.getState();
+
+    const mode       = state.mode;
+    let currentState = state.currentState;
+    let states       = state.states;
+    let stateCounter = state.stateCounter;
+
+    if (currentState < states.length - 1) {
+      states = states.slice(0, currentState + 1);
+    }
+
+    if (states.length > 0
+        && states[states.length - 1].action === changeAction) {
+      states[states.length - 1].state[change.store.id] = changeState;
     } else {
-      let state:any;
-      let diff:any  = [];
-      let lastState = this._states[this._states.length - 1] || {state: null};
-      if (this._mode == DebugModes.STATE) {
-        state = {};
+      let nextState:any;
+      let diff:any    = [];
+      const lastState = states[states.length - 1] || {state: null};
+      if (mode == DebugMode.STATE) {
+        nextState = {};
       } else {
-        state = objectAssign({}, lastState.state || {});
+        nextState = objectAssign({}, lastState.state || {});
       }
-      state[change.store.id] = change.state;
+      nextState[changeStoreId] = changeState;
 
-      if (this._mode == DebugModes.DIFF) {
-        diff = this.prepareDiff(diffDeep(lastState.state || {}, state) || []);
+      if (mode == DebugMode.DIFF) {
+        diff = prepareDiff(diffDeep(lastState.state || {}, nextState) || []);
       }
 
-      this._states.push({
-        key: ++this.stateCounter,
+      const inactive = changeAction.hasTag(DebugTags.REPLAY_INACTIVE);
+
+      stateCounter = stateCounter + 1;
+
+      states.push({
+        key: debugStateKeyCounter++,
         action: change.action,
-        state,
+        state: nextState,
         diff,
-        inactive: change.action.isNoop
+        inactive: inactive
       });
 
-      change.action.isNoop = false;
-    }
-
-    this._currentState = this._states.length - 1;
-
-    if (this.timer != null) {
-      window.clearTimeout(this.timer);
-      this.timer = null;
-    }
-    this.timer = window.setTimeout(() => {
-      this.fireHandlers();
-      this.timer = null;
-    }, this._throttle);
-  }
-
-  private prepareDiff(diff) {
-    let newDiff = [];
-
-    diff.forEach(change => {
-      let newChange = {
-        path: change.path.join('.') + (change.kind == 'A' ? '.' + change.index : '')
-      };
-      switch (change.kind) {
-        case 'E':
-          newChange['deleted'] = change.lhs;
-          newChange['added']   = change.rhs;
-          break;
-        case 'D':
-          newChange['deleted'] = change.lhs;
-          break;
-        case 'N':
-          newChange['added'] = change.rhs;
-          break;
-        case 'A':
-          switch (change.item.kind) {
-            case 'D':
-              newChange['deleted'] = change.item.lhs;
-              break;
-            case 'N':
-              newChange['added'] = change.item.rhs;
-              break;
-            case 'E':
-              newChange['deleted'] = change.item.lhs;
-              newChange['added']   = change.item.rhs;
-              break;
-          }
-          break;
-      }
-
-      newDiff.push(newChange);
-    });
-
-    return newDiff;
-  }
-
-  private fireHandlers() {
-    this._handlers.forEach((handler) => {
-      handler(this);
-    });
-  }
-
-  public jumpToState(state:DebugState) {
-    let currentState = this.states.indexOf(state);
-
-    if (currentState > -1) {
-      this._currentState = currentState;
-
-      this.applyState(this._currentState);
-    }
-
-    this.fireHandlers();
-  }
-
-  public toggleStateActive(state:DebugState) {
-    this._currentState = this.states.length - 1;
-    let currentState   = this.states.indexOf(state);
-
-    if (currentState > -1) {
-      this.states[currentState].inactive = !this.states[currentState].inactive;
-
-      this.replayAll();
-    }
-  }
-
-  private replayAll() {
-    this.applyState(0);
-
-    let states   = [...this.states];
-    this._states = [states.shift()];
-
-    states.forEach(state => {
-      let action;
-      if (state.inactive) {
-        action        = state.action;
-        action.isNoop = true;
-      } else {
-        action = state.action;
-      }
-      this.actionSource.onNext(action);
-    });
-
-    this._currentState = this.states.length - 1;
-  }
-
-  private calculateState(stateIndex) {
-    if (this._mode == DebugModes.DIFF) {
-      return this._states[stateIndex].state;
-    }
-
-    let calculatedState = {};
-    let i;
-
-    for (i = 0; i <= stateIndex; i++) {
-      if (!this._states[i].inactive) {
-        Object.keys(this._states[i].state).forEach(key => calculatedState[key] = this._states[i].state[key]);
+      if (inactive) {
+        changeAction.removeTag(Tags.INTERNAL);
+        changeAction.removeTag(DebugTags.REPLAY_INACTIVE);
       }
     }
 
-    return calculatedState;
-  }
+    currentState = states.length - 1;
 
-  private applyState(stateIndex) {
-    let calculatedState = this.calculateState(stateIndex);
+    return {
+      states,
+      currentState,
+      mode,
+      stateCounter
+    };
+  };
+}
 
-    Store.stores.forEach(store => {
-      if (calculatedState[store.id]) {
-        store.setState(calculatedState[store.id]);
-      }
-    });
-  }
+function prepareDiff(diff) {
+  let newDiff = [];
 
-  public commit() {
-    let state          = this._states[this._currentState];
-    state.state        = this.calculateState(this._currentState);
-    this._states       = [state];
-    this._currentState = 0;
+  diff.forEach(change => {
+    let newChange = {
+      path: change.path.join('.') + (change.kind == 'A' ? '.' + change.index : '')
+    };
+    switch (change.kind) {
+      case 'E':
+        newChange['deleted'] = change.lhs;
+        newChange['added']   = change.rhs;
+        break;
+      case 'D':
+        newChange['deleted'] = change.lhs;
+        break;
+      case 'N':
+        newChange['added'] = change.rhs;
+        break;
+      case 'A':
+        switch (change.item.kind) {
+          case 'D':
+            newChange['deleted'] = change.item.lhs;
+            break;
+          case 'N':
+            newChange['added'] = change.item.rhs;
+            break;
+          case 'E':
+            newChange['deleted'] = change.item.lhs;
+            newChange['added']   = change.item.rhs;
+            break;
+        }
+        break;
+    }
 
-    this.fireHandlers();
-  }
+    newDiff.push(newChange);
+  });
 
-  public sweep() {
-    this._states       = this._states.filter(state => state.inactive == false);
-    this._currentState = this._states.length - 1;
-    this.applyState(this._currentState);
-    this.fireHandlers();
-  }
+  return newDiff;
+}
 
-  public reset() {
-    this._states       = this._states.slice(0, 1);
-    this._currentState = 0;
-    this.applyState(this._currentState);
-    this.fireHandlers();
-  }
 
-  public setMode(mode:DebugModes) {
-    this._mode = mode;
+export function createDebugStore(actionSource:Subject<Action<any>>,
+                                 storeSource:Subject<StoreChange<any>>):MetaStore<DebugHistoryState> {
 
-    this.replayAll();
-  }
+  var debugStore = new ControllableMetaStore<DebugHistoryState>(
+      actionSource,
+      storeSource, {
+        states: [],
+        currentState: 0,
+        mode: DebugMode.STATE,
+        stateCounter: 0
+      },
+      'debugStore'
+  );
 
-  public subscribe(handler:(debugStore:DebugStore) => any):void {
-    this._handlers.push(handler);
-  }
+  debugStore.on(storeChangeHandler(debugStore));
 
+  debugStore.onAction(DebugActions.sweep, sweep);
+  debugStore.onAction(DebugActions.commit, commit);
+  debugStore.onAction(DebugActions.reset, reset);
+  debugStore.onAction(DebugActions.setMode, setMode);
+  debugStore.onAction(DebugActions.jumpToState, jumpToState);
+  debugStore.onAction(DebugActions.toggleStateActive, toggleStateActive);
+
+  debugStore.onAction([
+    DebugActions.setMode,
+    DebugActions.toggleStateActive
+  ], replayAll(actionSource));
+
+  return debugStore;
 }
